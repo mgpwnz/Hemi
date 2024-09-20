@@ -138,19 +138,18 @@ uninstall() {
             sudo systemctl disable hemi.service
             sudo systemctl daemon-reload
 
-            mkdir -p $HOME/backuphemi
+            # Create backup directory if it doesn't exist
+            mkdir -p "$HOME/backuphemi"
 
+            # Move popm-address.json to backup if it exists
             if [ -f "$HOME/popm-address.json" ]; then
                 mv "$HOME/popm-address.json" "$HOME/backuphemi/"
+                echo "Backup of popm-address.json created in $HOME/backuphemi/"
             fi
 
+            # Remove hemi directory and service file
             rm -rf "$HOME/hemi"
-
-            sed -i '/POPM_BTC_PRIVKEY/d' ~/.bashrc
-            sed -i '/POPM_STATIC_FEE/d' ~/.bashrc
-            sed -i '/POPM_BFG_URL/d' ~/.bashrc
-
-            source ~/.bashrc
+            sudo rm -f /etc/systemd/system/hemi.service
 
             echo "Heminetwork successfully uninstalled and data wiped."
             ;;
