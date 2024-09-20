@@ -27,54 +27,44 @@ while test $# -gt 0; do
 done
 
 wallet() {
-    if [ -f $HOME/popm-address.json ]; then
+    if [ -f "$HOME/popm-address.json" ]; then
         echo "File popm-address.json already exists. Skipping wallet generation."
         return 0
     else
-        if [ ! -d $HOME/hemi ]; then
+        if [ ! -d "$HOME/hemi" ]; then
             echo "Directory $HOME/hemi does not exist. Cannot generate wallet."
             return 1
         fi
 
-        cd $HOME/hemi || { echo "Failed to change directory to $HOME/hemi."; return 1; }
-        ./keygen -secp256k1 -json -net="testnet" > ~/popm-address.json
-        cd $HOME
+        cd "$HOME/hemi" || { echo "Failed to change directory to $HOME/hemi."; return 1; }
+        ./keygen -secp256k1 -json -net="testnet" > "$HOME/popm-address.json"
+        cd "$HOME" || return 1
 
-        PRIVATE_KEY=$(jq -r '.private_key' $HOME/popm-address.json)
-        if [ -n "$PRIVATE_KEY" ]; then
-            echo "export POPM_BTC_PRIVKEY=$PRIVATE_KEY" >> ~/.bashrc
-            echo 'export POPM_STATIC_FEE=50' >> ~/.bashrc
-            echo 'export POPM_BFG_URL=wss://testnet.rpc.hemi.network/v1/ws/public' >> ~/.bashrc
-        else
-            echo "Failed to extract PRIVATE_KEY. Check popm-address.json."
-            return 1
-        fi
-
-        # Reload bashrc to apply new variables
-        source ~/.bashrc
-
-        # Restart the hemi service
-        sudo systemctl restart hemi.service
+        PRIVATE_KEY=$(jq -r '.private_key' "$HOME/popm-address.json")
+        echo "Generated PRIVATE_KEY: $PRIVATE_KEY"
     fi
 }
 
 install() {
     sudo apt update && sudo apt upgrade -y
-    if [ -d $HOME/hemi ]; then
-        echo "Directory $HOME/hemi/ already exists. Skipping installation."
+    if [ -d "$HOME/hemi" ]; then
+        echo "Directory $HOME/hemi already exists. Skipping installation."
         return 0
     else
         heminetwork_version=$(wget -qO- https://api.github.com/repos/hemilabs/heminetwork/releases/latest | jq -r ".tag_name")
-        wget -qO $HOME/hemi.tar.gz "https://github.com/hemilabs/heminetwork/releases/download/${heminetwork_version}/heminetwork_${heminetwork_version}_linux_amd64.tar.gz"
+        wget -qO "$HOME/hemi.tar.gz" "https://github.com/hemilabs/heminetwork/releases/download/${heminetwork_version}/heminetwork_${heminetwork_version}_linux_amd64.tar.gz"
         
-        if [ $(wc -c < "$HOME/hemi.tar.gz") -ge 1000 ]; then
-            tar -xvf $HOME/hemi.tar.gz -C $HOME
-            rm -rf $HOME/hemi.tar.gz
+        if [ "$(wc -c < "$HOME/hemi.tar.gz")" -ge 1000 ]; then
+            tar -xvf "$HOME/hemi.tar.gz" -C "$HOME"
+            rm -rf "$HOME/hemi.tar.gz"
 
             # Rename the extracted directory
-            mv $HOME/heminetwork_${heminetwork_version}_linux_amd64/ $HOME/hemi/
-            chmod +x $HOME/hemi/popmd
-            
+            mv "$HOME/heminetwork_${heminetwork_version}_linux_amd64/" "$HOME/hemi/"
+            chmod +x "$HOME/hemi/popmd"
+
+            # Call the wallet function to generate keys
+            wallet
+
             # Create the systemd service file
             sudo tee /etc/systemd/system/hemi.service > /dev/null <<EOF
 [Unit]
@@ -84,6 +74,9 @@ After=network-online.target
 [Service]
 User=$USER
 WorkingDirectory=$HOME/hemi/
+Environment="POPM_BTC_PRIVKEY=$PRIVATE_KEY"
+Environment="POPM_STATIC_FEE=50"
+Environment="POPM_BFG_URL=wss://testnet.rpc.hemi.network/v1/ws/public"
 ExecStart=$HOME/hemi/popmd
 Restart=on-failure
 RestartSec=3
@@ -95,11 +88,9 @@ EOF
 
             sudo systemctl enable hemi.service
             sudo systemctl daemon-reload
-
-            # Call the wallet function to generate and set up keys
-            wallet
+            sudo systemctl start hemi.service
         else
-            rm -rf $HOME/hemi.tar.gz
+            rm -rf "$HOME/hemi.tar.gz"
             echo "Archive is not downloaded or too small!"
             return 1
         fi
