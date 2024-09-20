@@ -38,6 +38,7 @@ wallet() {
 
         cd $HOME/hemi || { echo "Failed to change directory to $HOME/hemi."; return 1; }
         ./keygen -secp256k1 -json -net="testnet" > ~/popm-address.json
+        cd $HOME
 
         PRIVATE_KEY=$(jq -r '.private_key' $HOME/popm-address.json)
         if [ -n "$PRIVATE_KEY" ]; then
