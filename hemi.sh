@@ -27,22 +27,32 @@ while test $# -gt 0; do
 done
 
 wallet() {
+    # Check if the file exists in the backup directory
+    if [ -f "$HOME/backuphemi/popm-address.json" ]; then
+        echo "Restoring popm-address.json from backup."
+        cp "$HOME/backuphemi/popm-address.json" "$HOME/"
+        PRIVATE_KEY=$(jq -r '.private_key' "$HOME/popm-address.json")
+        echo "Restored PRIVATE_KEY: $PRIVATE_KEY"
+        return 0
+    fi
+
+    # Check if the main file exists
     if [ -f "$HOME/popm-address.json" ]; then
         echo "File popm-address.json already exists. Skipping wallet generation."
         return 0
-    else
-        if [ ! -d "$HOME/hemi" ]; then
-            echo "Directory $HOME/hemi does not exist. Cannot generate wallet."
-            return 1
-        fi
-
-        cd "$HOME/hemi" || { echo "Failed to change directory to $HOME/hemi."; return 1; }
-        ./keygen -secp256k1 -json -net="testnet" > "$HOME/popm-address.json"
-        cd "$HOME" || return 1
-
-        PRIVATE_KEY=$(jq -r '.private_key' "$HOME/popm-address.json")
-        echo "Generated PRIVATE_KEY: $PRIVATE_KEY"
     fi
+
+    if [ ! -d "$HOME/hemi" ]; then
+        echo "Directory $HOME/hemi does not exist. Cannot generate wallet."
+        return 1
+    fi
+
+    cd "$HOME/hemi" || { echo "Failed to change directory to $HOME/hemi."; return 1; }
+    ./keygen -secp256k1 -json -net="testnet" > "$HOME/popm-address.json"
+    cd "$HOME" || return 1
+
+    PRIVATE_KEY=$(jq -r '.private_key' "$HOME/popm-address.json")
+    echo "Generated PRIVATE_KEY: $PRIVATE_KEY"
 }
 
 install() {
@@ -64,6 +74,12 @@ install() {
 
             # Call the wallet function to generate keys
             wallet
+            
+            # Check if PRIVATE_KEY is set after wallet function
+            if [ -z "$PRIVATE_KEY" ]; then
+                echo "PRIVATE_KEY is not set. Aborting service creation."
+                return 1
+            fi
 
             # Create the systemd service file
             sudo tee /etc/systemd/system/hemi.service > /dev/null <<EOF
@@ -97,26 +113,32 @@ EOF
     fi
 }
 
+
 update() {
     sudo apt update && sudo apt upgrade -y
     
     if [ -d "$HOME/hemi" ]; then
         echo "Directory $HOME/hemi exists. Checking for updates..."
         heminetwork_version=$(wget -qO- https://api.github.com/repos/hemilabs/heminetwork/releases/latest | jq -r ".tag_name")
-        wget -qO $HOME/hemi.tar.gz "https://github.com/hemilabs/heminetwork/releases/download/${heminetwork_version}/heminetwork_${heminetwork_version}_linux_amd64.tar.gz"
+        wget -qO "$HOME/hemi.tar.gz" "https://github.com/hemilabs/heminetwork/releases/download/${heminetwork_version}/heminetwork_${heminetwork_version}_linux_amd64.tar.gz"
         
-        if [ $(wc -c < "$HOME/hemi.tar.gz") -ge 1000 ]; then
-            tar -xvf $HOME/hemi.tar.gz -C $HOME
-            rm -rf $HOME/hemi.tar.gz
+        if [ "$(wc -c < "$HOME/hemi.tar.gz")" -ge 1000 ]; then
+            tar -xvf "$HOME/hemi.tar.gz" -C "$HOME"
+            rm -rf "$HOME/hemi.tar.gz"
 
-            mv $HOME/heminetwork_${heminetwork_version}_linux_amd64/ $HOME/hemi/
-            chmod +x $HOME/hemi/popmd
+            mv "$HOME/heminetwork_${heminetwork_version}_linux_amd64/" "$HOME/hemi/"
+            chmod +x "$HOME/hemi/popmd"
 
-            sudo systemctl restart hemi.service
-            echo "Heminetwork updated successfully to version ${heminetwork_version}."
+            # Restart the service and check for success
+            if sudo systemctl restart hemi.service; then
+                echo "Heminetwork updated successfully to version ${heminetwork_version}."
+            else
+                echo "Failed to restart the hemi service."
+                return 1
+            fi
         else
             echo "Failed to download or archive is too small. No update applied."
-            rm -rf $HOME/hemi.tar.gz
+            rm -rf "$HOME/hemi.tar.gz"
             return 1
         fi
     else
@@ -124,6 +146,7 @@ update() {
         install
     fi
 }
+
 
 uninstall() {
     if [ ! -d "$HOME/hemi" ]; then
