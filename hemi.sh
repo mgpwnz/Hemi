@@ -125,8 +125,9 @@ update() {
         if [ "$(wc -c < "$HOME/hemi.tar.gz")" -ge 1000 ]; then
             tar -xvf "$HOME/hemi.tar.gz" -C "$HOME"
             rm -rf "$HOME/hemi.tar.gz"
-
-            mv "$HOME/heminetwork_${heminetwork_version}_linux_amd64/" "$HOME/hemi"
+            #del old
+            rm -rf $HOME/hemi
+            mv "$HOME/heminetwork_${heminetwork_version}_linux_amd64/" "$HOME/hemi/"
             chmod +x "$HOME/hemi/popmd"
 
             # Restart the service and check for success
