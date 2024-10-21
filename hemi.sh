@@ -91,7 +91,7 @@ After=network-online.target
 User=$USER
 WorkingDirectory=$HOME/hemi/
 Environment="POPM_BTC_PRIVKEY=$PRIVATE_KEY"
-Environment="POPM_STATIC_FEE=50"
+Environment="POPM_STATIC_FEE=250"
 Environment="POPM_BFG_URL=wss://testnet.rpc.hemi.network/v1/ws/public"
 ExecStart=$HOME/hemi/popmd
 Restart=on-failure
