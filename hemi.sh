@@ -38,6 +38,8 @@ wallet() {
 
     # Check if the main file exists
     if [ -f "$HOME/popm-address.json" ]; then
+        PRIVATE_KEY=$(jq -r '.private_key' "$HOME/popm-address.json")
+        echo "Generated PRIVATE_KEY: $PRIVATE_KEY"
         echo "File popm-address.json already exists. Skipping wallet generation."
         return 0
     fi
@@ -167,7 +169,7 @@ uninstall() {
 
             # Move popm-address.json to backup if it exists
             if [ -f "$HOME/popm-address.json" ]; then
-                mv "$HOME/popm-address.json" "$HOME/backuphemi/"
+                cp "$HOME/popm-address.json" "$HOME/backuphemi/"
                 echo "Backup of popm-address.json created in $HOME/backuphemi/"
             fi
 
